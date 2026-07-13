@@ -61,7 +61,13 @@
   }
   .stat{font-size:.85rem;color:var(--muted);display:flex;align-items:center;gap:6px}
   .stat strong{color:var(--primary);font-weight:700}
-  .filter-wrap{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+  .filter-wrap{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .btn-io{
+    padding:5px 13px;border-radius:16px;border:1.5px solid var(--border);
+    background:transparent;font-family:'Nunito',sans-serif;font-size:.8rem;
+    color:var(--muted);cursor:pointer;transition:.2s;
+  }
+  .btn-io:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
   .filter-btn{
     padding:5px 14px;border-radius:16px;border:1.5px solid var(--border);
     background:transparent;font-family:'Nunito',sans-serif;font-size:.8rem;
@@ -341,6 +347,11 @@
   <div class="filter-wrap" id="filterWrap">
     <button class="filter-btn active" data-filter="all" onclick="setFilter('all',this)">ทั้งหมด</button>
   </div>
+  <button class="btn-io" onclick="exportCards()" title="Export คำศัพท์ทั้งหมดเป็น JSON">⬇️ Export</button>
+  <label class="btn-io" title="Import คำศัพท์จากไฟล์ JSON">
+    ⬆️ Import
+    <input type="file" id="importFile" accept=".json" onchange="importCards(event)" style="display:none">
+  </label>
 </div>
 
 <!-- CARD GRID -->
@@ -1158,6 +1169,46 @@ function setStatus(msg){
   const el = document.getElementById('lookupStatus');
   el.textContent = msg;
   el.style.display = msg ? 'block' : 'none';
+}
+
+/* ─── EXPORT / IMPORT ─── */
+function exportCards(){
+  const data = JSON.stringify(cards, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `vocab-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('⬇️ Export สำเร็จ!');
+}
+
+function importCards(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try{
+      const imported = JSON.parse(ev.target.result);
+      if(!Array.isArray(imported)) throw new Error();
+      // Merge: ถ้า ID ซ้ำให้ใช้ของที่ import มา (ใหม่กว่า)
+      const existingIds = new Set(cards.map(c=>c.id));
+      const newCards = imported.filter(c=>!existingIds.has(c.id));
+      const merged = [...imported.filter(c=>existingIds.has(c.id)),
+                      ...cards.filter(c=>!imported.find(i=>i.id===c.id)),
+                      ...newCards];
+      // Sort by created date
+      cards = merged.sort((a,b)=>(b.created||0)-(a.created||0));
+      save();
+      render();
+      showToast(`✅ Import สำเร็จ ${imported.length} คำ`);
+    } catch(err){
+      showToast('⚠️ ไฟล์ไม่ถูกต้อง');
+    }
+    e.target.value = '';
+  };
+  reader.readAsText(file);
 }
 
 /* ─── KEYBOARD ─── */
